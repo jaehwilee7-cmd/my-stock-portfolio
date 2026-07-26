@@ -1,12 +1,17 @@
-'server-only';
+'use server';
 
-import { supabase } from '@/lib/supabase';
-import { StockItem } from '@/types';
-import { revalidatePath } from 'next/cache';
+import { createClient } from '@supabase/supabase-js';
 
-export async function getPortfolioData(): Promise<StockItem[]> {
+function getSupabaseClient() {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://grskqtwbzgedzitqamhw.supabase.co';
+  const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imdyc2txdHdiemdlZHppdHFhbWh3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODUwMzU2NDUsImV4cCI6MjEwMDYxMTY0NX0.Hikwu9xAu89I0iLSOqrHmBPRuz1Y9Vcg4qcSAzEdWmg';
+  return createClient(url, key);
+}
+
+export async function getPortfolioData() {
+  const supabase = getSupabaseClient();
   const { data, error } = await supabase
-    .from('portfolio')
+    .from('stocks')
     .select('*')
     .order('created_at', { ascending: false });
 
@@ -14,24 +19,48 @@ export async function getPortfolioData(): Promise<StockItem[]> {
     console.error('Error fetching portfolio:', error);
     return [];
   }
-
-  return data as StockItem[];
+  return data || [];
 }
 
-export async function addStockItem(item: Omit<StockItem, 'id'>) {
-  const { error } = await supabase.from('portfolio').insert([item]);
-  if (error) throw new Error(error.message);
-  revalidatePath('/');
+export async function addStockItem(formData: any) {
+  const supabase = getSupabaseClient();
+  const { data, error } = await supabase
+    .from('stocks')
+    .insert([formData])
+    .select();
+
+  if (error) {
+    console.error('Error adding stock:', error);
+    throw new Error(error.message);
+  }
+  return data;
 }
 
-export async function updateStockItem(id: string, item: Partial<StockItem>) {
-  const { error } = await supabase.from('portfolio').update(item).eq('id', id);
-  if (error) throw new Error(error.message);
-  revalidatePath('/');
+export async function updateStockItem(id: string, formData: any) {
+  const supabase = getSupabaseClient();
+  const { data, error } = await supabase
+    .from('stocks')
+    .update(formData)
+    .eq('id', id)
+    .select();
+
+  if (error) {
+    console.error('Error updating stock:', error);
+    throw new Error(error.message);
+  }
+  return data;
 }
 
 export async function deleteStockItem(id: string) {
-  const { error } = await supabase.from('portfolio').delete().eq('id', id);
-  if (error) throw new Error(error.message);
-  revalidatePath('/');
+  const supabase = getSupabaseClient();
+  const { error } = await supabase
+    .from('stocks')
+    .delete()
+    .eq('id', id);
+
+  if (error) {
+    console.error('Error deleting stock:', error);
+    throw new Error(error.message);
+  }
+  return true;
 }
