@@ -3,15 +3,19 @@
 import React, { useState, useEffect } from 'react';
 import { createClient } from '@supabase/supabase-js';
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
-const supabase = createClient(supabaseUrl, supabaseAnonKey);
+// Supabase 클라이언트 안전 생성 함수
+const getSupabase = () => {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
+  const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
+  if (!url || !key) return null;
+  return createClient(url, key);
+};
 
 interface Stock {
   id?: number | string;
   broker: string;
   account_name: string;
-  symbol: string;
+  symbol: symbol;
   stock_name: string;
   quantity: number;
   avg_price: number;
@@ -21,14 +25,12 @@ interface Stock {
 }
 
 export default function PortfolioPage() {
-  const [stocks, setStocks] = useState<Stock[]>([]);
+  const [stocks, setStocks] = useState<any[]>([]);
   const [quotes, setQuotes] = useState<Record<string, number>>({});
   const [loading, setLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [fetchingName, setFetchingName] = useState(false);
 
-  // 폼 상태 관리
-  const [formData, setFormData] = useState<Stock>({
+  const [formData, setFormData] = useState({
     broker: '',
     account_name: '',
     symbol: '',
@@ -43,13 +45,18 @@ export default function PortfolioPage() {
   // DB 데이터 불러오기
   const fetchPortfolio = async () => {
     setLoading(true);
+    const supabase = getSupabase();
+    if (!supabase) {
+      setLoading(false);
+      return;
+    }
+
     const { data, error } = await supabase.from('portfolio').select('*');
     if (error) {
       console.error('Error fetching data:', error);
     } else if (data) {
       setStocks(data);
-      // 등록된 종목 시세 불러오기
-      const symbols = data.map((item) => item.symbol).filter(Boolean);
+      const symbols = data.map((item: any) => item.symbol).filter(Boolean);
       if (symbols.length > 0) {
         fetchQuotes(symbols);
       }
@@ -57,7 +64,7 @@ export default function PortfolioPage() {
     setLoading(false);
   };
 
-  // 실시간 시세 조회 API 호출
+  // 시세 불러오기
   const fetchQuotes = async (symbols: string[]) => {
     try {
       const res = await fetch(`/api/quote?symbols=${symbols.join(',')}`);
@@ -74,33 +81,34 @@ export default function PortfolioPage() {
     fetchPortfolio();
   }, []);
 
-  // 종목코드 입력 시 자동 이름 및 시세 가져오기
+  // 종목코드 입력 시 시세 자동 조회
   const handleSymbolBlur = async () => {
     const sym = formData.symbol.trim().toUpperCase();
     if (!sym) return;
 
-    setFetchingName(true);
     try {
       const res = await fetch(`/api/quote?symbols=${sym}`);
       const result = await res.json();
       if (result.quotes && result.quotes[sym]) {
-        // 가져온 시세 저장
         setQuotes((prev) => ({ ...prev, [sym]: result.quotes[sym] }));
-        // 평단가가 0이면 현재가를 기본값으로 자동 제안
         if (formData.avg_price === 0) {
           setFormData((prev) => ({ ...prev, avg_price: result.quotes[sym] }));
         }
       }
     } catch (err) {
       console.error(err);
-    } finally {
-      setFetchingName(false);
     }
   };
 
-  // 종목 추가 저장
+  // 종목 저장
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
+    const supabase = getSupabase();
+    if (!supabase) {
+      alert('Supabase 환경변수가 설정되지 않았습니다.');
+      return;
+    }
+
     if (!formData.symbol || !formData.stock_name) {
       alert('종목코드와 종목명을 입력해 주세요.');
       return;
@@ -144,6 +152,9 @@ export default function PortfolioPage() {
   // 종목 삭제
   const handleDelete = async (id: number | string) => {
     if (!confirm('정말 삭제하시겠습니까?')) return;
+    const supabase = getSupabase();
+    if (!supabase) return;
+
     const { error } = await supabase.from('portfolio').delete().eq('id', id);
     if (error) {
       alert('삭제 실패: ' + error.message);
@@ -152,7 +163,6 @@ export default function PortfolioPage() {
     }
   };
 
-  // 총 평가금액 계산
   const totalEvaluated = stocks.reduce((acc, item) => {
     const price = quotes[item.symbol] || item.avg_price;
     return acc + price * item.quantity;
@@ -191,7 +201,7 @@ export default function PortfolioPage() {
           </div>
         </div>
 
-        {/* 대시보드 요약 카드 */}
+        {/* 요약 카드 */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
             <p className="text-sm text-gray-500 font-medium">총 평가금액</p>
@@ -216,7 +226,7 @@ export default function PortfolioPage() {
           </div>
         </div>
 
-        {/* 종목 리스트 테이블 */}
+        {/* 종목 테이블 */}
         <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full text-left border-collapse">
@@ -240,7 +250,7 @@ export default function PortfolioPage() {
                   </tr>
                 ) : stocks.length === 0 ? (
                   <tr>
-                    <td colSpan={9} className="text-center p-8 text-gray-400">등록된 종목이 없습니다. 오른쪽 위 "+ 종목 추가" 버튼을 눌러주세요.</td>
+                    <td colSpan={9} className="text-center p-8 text-gray-400">등록된 종목이 없습니다. "+ 종목 추가" 버튼을 눌러주세요.</td>
                   </tr>
                 ) : (
                   stocks.map((item) => {
@@ -272,7 +282,7 @@ export default function PortfolioPage() {
                         </td>
                         <td className="p-4 text-center">
                           <button
-                            onClick={() => handleDelete(item.id!)}
+                            onClick={() => handleDelete(item.id)}
                             className="text-red-500 hover:text-red-700 text-xs px-2 py-1 border border-red-200 rounded hover:bg-red-50"
                           >
                             삭제
@@ -287,7 +297,7 @@ export default function PortfolioPage() {
           </div>
         </div>
 
-        {/* 종목 추가 모달 창 */}
+        {/* 모달 */}
         {isModalOpen && (
           <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
             <div className="bg-white rounded-xl max-w-md w-full p-6 shadow-xl space-y-4">
@@ -308,7 +318,7 @@ export default function PortfolioPage() {
                     <label className="text-xs font-medium text-gray-600">계좌명</label>
                     <input
                       type="text"
-                      placeholder="예: ISA, 위탁,연금"
+                      placeholder="예: ISA, 위탁, 연금"
                       value={formData.account_name}
                       onChange={(e) => setFormData({ ...formData, account_name: e.target.value })}
                       className="w-full border rounded-lg p-2 text-sm mt-1"
@@ -328,7 +338,7 @@ export default function PortfolioPage() {
                     required
                   />
                   <p className="text-[11px] text-gray-400 mt-1">
-                    * 국장 주식/ETF는 뒤에 .KS 붙임 (예: 삼성전자 005930.KS, TIGER 미국배당다우존스 360750.KS)
+                    * 국장 주식/ETF는 뒤에 .KS 붙임 (예: 삼성전자 005930.KS)
                   </p>
                 </div>
 
