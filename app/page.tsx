@@ -1,5 +1,7 @@
 'use client';
 
+export const dynamic = 'force-dynamic'; // <--- 이 줄이 빌드 시 Prerender 에러를 막아줍니다.
+
 import { useEffect, useState } from 'react';
 import { StockWithQuote } from '@/types';
 import { getPortfolioData, addStockItem, updateStockItem, deleteStockItem } from './actions';
