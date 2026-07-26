@@ -2,13 +2,13 @@ export interface StockItem {
   id: string;
   broker: string;
   account_name: string;
+  account_type: string;
   symbol: string;
-  stock_name: string;
+  name: string;
   quantity: number;
   avg_price: number;
-  monthly_pnl: number;
-  yearly_pnl: number;
-  dividend_yield: number;
+  currency: 'KRW' | 'USD';
+  user_id?: string;
   created_at?: string;
 }
 
