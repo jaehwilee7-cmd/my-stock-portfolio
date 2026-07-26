@@ -8,7 +8,9 @@ export interface StockItem {
   quantity: number;
   avg_price: number;
   currency: 'KRW' | 'USD';
-  monthly_pnl?: number;
+  monthly_pnl: number;
+  yearly_pnl: number;
+  dividend_yield: number;
   user_id?: string;
   created_at?: string;
 }
