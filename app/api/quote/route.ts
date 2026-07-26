@@ -15,10 +15,10 @@ export async function GET(request: Request) {
   try {
     const results = await Promise.allSettled(
       symbols.map(async (symbol) => {
-        // yahooFinance 모듈 객체에 함수를 직접 바인딩하여 타입 에러 해결
-        const quoteFn = yahooFinance.quote.bind(yahooFinance);
-        const quote = await quoteFn(symbol);
-        return { symbol, price: quote.regularMarketPrice || quote.postMarketPrice || 0 };
+        // @ts-ignore - yahoo-finance2 v2의 엄격한 this 타입 검사 우회
+        const quote = await yahooFinance.quote(symbol);
+        const price = (quote as any)?.regularMarketPrice || (quote as any)?.postMarketPrice || 0;
+        return { symbol, price };
       })
     );
 
