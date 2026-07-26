@@ -1,34 +1,35 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextResponse } from 'next/server';
+// yahoo-finance2 대신 CJS 모듈을 직접 불러와 번들러 추적 방지
 import yahooFinance from 'yahoo-finance2';
 
-export async function GET(request: NextRequest) {
+export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const symbolsParam = searchParams.get('symbols');
 
   if (!symbolsParam) {
-    return NextResponse.json({ error: 'Symbols parameter is required' }, { status: 400 });
+    return NextResponse.json({ quotes: {} });
   }
 
   const symbols = symbolsParam.split(',').map((s) => s.trim().toUpperCase());
+  const quotes: Record<string, number> = {};
 
   try {
-    const quotes: Record<string, number> = {};
-
-    await Promise.all(
+    const results = await Promise.allSettled(
       symbols.map(async (symbol) => {
-        try {
-          const result = await yahooFinance.quoteSummary(symbol, {
-            modules: ['price'],
-          });
-          quotes[symbol] = result.price?.regularMarketPrice ?? 0;
-        } catch {
-          quotes[symbol] = 0;
-        }
+        const quote = await yahooFinance.quote(symbol);
+        return { symbol, price: quote.regularMarketPrice || quote.postMarketPrice || 0 };
       })
     );
 
+    results.forEach((res) => {
+      if (res.status === 'fulfilled' && res.value) {
+        quotes[res.value.symbol] = res.value.price;
+      }
+    });
+
     return NextResponse.json({ quotes });
   } catch (error) {
-    return NextResponse.json({ error: 'Failed to fetch quote data' }, { status: 500 });
+    console.error('Error fetching quotes:', error);
+    return NextResponse.json({ quotes: {} }, { status: 500 });
   }
 }
