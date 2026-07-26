@@ -1,5 +1,4 @@
 import { NextResponse } from 'next/server';
-// yahoo-finance2 대신 CJS 모듈을 직접 불러와 번들러 추적 방지
 import yahooFinance from 'yahoo-finance2';
 
 export async function GET(request: Request) {
@@ -16,7 +15,9 @@ export async function GET(request: Request) {
   try {
     const results = await Promise.allSettled(
       symbols.map(async (symbol) => {
-        const quote = await yahooFinance.quote(symbol);
+        // yahooFinance 모듈 객체에 함수를 직접 바인딩하여 타입 에러 해결
+        const quoteFn = yahooFinance.quote.bind(yahooFinance);
+        const quote = await quoteFn(symbol);
         return { symbol, price: quote.regularMarketPrice || quote.postMarketPrice || 0 };
       })
     );
